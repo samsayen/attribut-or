@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ATTRIBUT-OR</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+/* Layout: an analyst's link board. Sticky section rail on top, one reading column, wide evidence tables that scroll inside themselves. */
+:root{
+  --bg:#eef1f5; --surface:#ffffff; --sunk:#e4e8ee; --ink:#121a26; --muted:#566173; --line:#d0d7e1;
+  --accent:#0f6b74; --accent-ink:#ffffff; --accent-soft:#d9eced;
+  --cn:#b8322b; --ru:#2a5cc0; --kp:#9a6410; --ec:#6f3bb8;
+  --good:#1f7a45; --warn:#a86a00; --bad:#b3362e;
+  --display:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0d121a; --surface:#151c27; --sunk:#1c2532; --ink:#e7ecf3; --muted:#96a2b5; --line:#2b3545;
+  --accent:#56c5cd; --accent-ink:#06262a; --accent-soft:#173338;
+  --cn:#f27d75; --ru:#80a9f7; --kp:#e5b45c; --ec:#bb96f4;
+  --good:#5fcf8c; --warn:#e8b04a; --bad:#f27d75; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0d121a; --surface:#151c27; --sunk:#1c2532; --ink:#e7ecf3; --muted:#96a2b5; --line:#2b3545;
+  --accent:#56c5cd; --accent-ink:#06262a; --accent-soft:#173338;
+  --cn:#f27d75; --ru:#80a9f7; --kp:#e5b45c; --ec:#bb96f4;
+  --good:#5fcf8c; --warn:#e8b04a; --bad:#f27d75; color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth;scroll-padding-top:64px}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.6 var(--body)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.12;margin:0}
+h1{font-size:clamp(2.2rem,6vw,4rem);font-weight:700;letter-spacing:-.02em}
+h2{font-size:clamp(1.5rem,3.4vw,2.2rem);font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.1rem;font-weight:700}
+p{margin:0;max-width:68ch}
+a{color:var(--accent)}
+code,.mono{font-family:var(--mono);font-size:.88em}
+.eyebrow{font:600 .72rem/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+.stack{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* nav */
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--bg);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;gap:4px;align-items:center;overflow-x:auto;padding-block:8px}
+nav .brand{font:700 .95rem var(--mono);margin-right:12px;white-space:nowrap}
+nav a{font:500 .82rem var(--body);color:var(--muted);text-decoration:none;padding:6px 10px;border-radius:4px;white-space:nowrap}
+nav a:hover{color:var(--ink);background:var(--sunk)}
+
+header.hero{padding-block:48px 36px}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:36px;align-items:end}
+.hero p.lede{font-size:1.12rem;margin-top:16px}
+.alias-card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:18px;min-width:0}
+.alias-card .who{font:700 1.3rem var(--display);margin:6px 0 2px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:12px}
+.tile{background:var(--sunk);border-radius:4px;padding:8px 10px;min-width:0}
+.tile b{display:block;font:500 .68rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tile span{font:500 .88rem var(--mono);overflow-wrap:anywhere}
+.tile.none span{color:var(--muted);font-style:italic}
+
+section{padding-block:44px;border-top:1px solid var(--line)}
+section>.wrap{display:flex;flex-direction:column;gap:20px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:20px;min-width:0}
+.btn{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:7px 12px;font-size:.86rem;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn[aria-pressed="true"],.btn[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+.two.wide-left{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}
+ul.clean{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:6px}
+ul.clean li{max-width:70ch}
+.tag{display:inline-block;font:600 .68rem/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:4px 6px;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+.t-cn{color:var(--cn)}.t-ru{color:var(--ru)}.t-kp{color:var(--kp)}.t-ec{color:var(--ec)}
+.t-good{color:var(--good)}.t-warn{color:var(--warn)}.t-bad{color:var(--bad)}.t-acc{color:var(--accent)}
+
+/* diamond */
+.diamond svg{width:100%;max-width:380px;display:block;margin:0 auto}
+.diamond .edge{stroke:var(--line);stroke-width:2;fill:none}
+.diamond .node circle{fill:var(--surface);stroke:var(--muted);stroke-width:2}
+.diamond .node text{fill:var(--ink);font:600 12px var(--mono);text-anchor:middle}
+.diamond .node{cursor:pointer}
+.diamond .node.on circle{fill:var(--accent);stroke:var(--accent)}
+.diamond .node.on text{fill:var(--accent-ink)}
+.diamond .meta{fill:var(--muted);font:500 10px var(--mono);text-anchor:middle}
+
+/* ladder + pyramid */
+.ladder{display:flex;flex-direction:column;gap:6px}
+.rung{display:grid;grid-template-columns:130px minmax(0,1fr);gap:12px;padding:10px 12px;background:var(--sunk);border-radius:4px}
+.rung b{font:600 .8rem var(--mono)}
+.pyr{display:flex;flex-direction:column;gap:6px;align-items:center}
+.pyr div{background:var(--sunk);border-radius:4px;padding:8px 12px;text-align:center;font-size:.86rem;max-width:100%}
+.pyr div b{font-family:var(--mono);font-size:.8rem}
+
+/* tables */
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.84rem}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 .68rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--sunk);white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+#matrix td{font-family:var(--mono);font-size:.8rem;min-width:118px}
+#matrix td:first-child{font:600 .88rem var(--body);min-width:170px}
+#matrix tbody tr{cursor:pointer}
+#matrix tbody tr:hover td{background:var(--sunk)}
+#matrix tbody tr.on td{background:var(--accent-soft)}
+#matrix .nil{color:var(--muted)}
+mark{background:var(--accent-soft);color:inherit;border-radius:2px;padding:0 2px}
+input[type=search]{font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--ink);min-width:0;flex:1 1 220px;max-width:360px}
+
+/* workbench */
+.ev{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:4px;background:var(--surface);cursor:pointer}
+.ev.neg{border-style:dashed}
+.ev input{margin-top:5px;accent-color:var(--accent)}
+.ev .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.meter{height:14px;background:var(--sunk);border-radius:7px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--accent);transition:width .25s}
+.verdict{font:700 1.5rem var(--display)}
+.sticky{position:sticky;top:calc(env(safe-area-inset-top,0px) + 64px);align-self:start}
+
+/* stepper */
+.steps{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.steps.five{grid-template-columns:repeat(5,minmax(0,1fr))}
+.steps button{background:var(--sunk);border:1px solid transparent;border-radius:4px;padding:10px 8px;text-align:left;font-size:.8rem;font-weight:500;min-width:0}
+.steps button small{display:block;font:600 .66rem var(--mono);color:var(--muted);letter-spacing:.08em}
+.steps button[aria-selected="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.tl{display:flex;flex-direction:column;gap:0;border-left:2px solid var(--line);margin-left:6px}
+.tl div{padding:0 0 14px 16px;position:relative}
+.tl div::before{content:"";position:absolute;left:-6px;top:8px;width:10px;height:10px;border-radius:50%;background:var(--kp)}
+.tl b{font:600 .78rem var(--mono);display:block;color:var(--muted)}
+.org{display:flex;flex-wrap:wrap;gap:8px}
+.org .btn{font-family:var(--mono);font-size:.78rem}
+
+/* alias graph */
+#graph{background:var(--surface);border:1px solid var(--line);border-radius:6px;min-width:0;overflow:hidden}
+#graph svg{display:block;width:100%;height:auto;touch-action:pan-y}
+#graphCap{min-height:3.2em;font-size:.86rem}
+.gl{stroke:var(--line);stroke-width:1.2}
+.gl.rel{stroke:var(--muted);stroke-dasharray:5 4;stroke-width:1.6}
+.gl.on{stroke:var(--accent);stroke-width:2}
+.gn{cursor:pointer}
+.gn circle{stroke-width:2;fill:var(--surface);stroke:var(--muted)}
+.gn.cn circle{stroke:var(--cn)}.gn.ru circle{stroke:var(--ru)}.gn.kp circle{stroke:var(--kp)}.gn.ec circle{stroke:var(--ec)}
+.gn.hub.cn circle{fill:var(--cn)}.gn.hub.ru circle{fill:var(--ru)}.gn.hub.kp circle{fill:var(--kp)}.gn.hub.ec circle{fill:var(--ec)}
+.gn.al.multi circle{fill:var(--accent);stroke:var(--accent)}
+.gn text{fill:var(--ink);font:500 10px var(--mono);text-anchor:middle;pointer-events:none;paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+.gn.hub text{font:600 11.5px var(--body)}
+.gn.al text{display:none}.gn.al.show text{display:block}
+.gn.sel circle{stroke:var(--ink);stroke-width:3.5}
+.gn.hit circle{stroke:var(--accent);stroke-width:5}
+.gn.dim,.gl.dim{opacity:.13}
+.gt{font:600 9px var(--mono);fill:var(--muted);text-anchor:middle;pointer-events:none;paint-order:stroke;stroke:var(--surface);stroke-width:3px;display:none}
+.gt.show{display:block}
+.rels{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:10px}
+.rel{padding:10px 12px;background:var(--sunk);border-radius:4px;font-size:.88rem;display:flex;flex-direction:column;gap:6px;min-width:0}
+.rel.on{background:var(--accent-soft)}
+.lnk{background:none;border:0;padding:0;font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid var(--muted);vertical-align:middle;margin-right:4px}
+.dot.big{width:14px;height:14px;background:var(--muted)}.dot.multi{background:var(--accent);border-color:var(--accent)}
+.dash{display:inline-block;width:22px;border-top:2px dashed var(--muted);vertical-align:middle;margin-right:4px}
+/* wire */
+.wire svg{width:100%;height:auto;display:block}
+.wire .ln{stroke:var(--line);stroke-width:3}
+.wire .div{stroke:var(--line);stroke-width:1;stroke-dasharray:2 4}
+.wire text{fill:var(--muted);font:600 10px var(--mono);text-anchor:middle;letter-spacing:.06em}
+.wire .nd{cursor:pointer}
+.wire .nd circle{fill:var(--surface);stroke:var(--muted);stroke-width:2}
+.wire .nd text{fill:var(--ink);font:600 11px var(--body);letter-spacing:0;paint-order:stroke;stroke:var(--surface);stroke-width:4px}
+.wire .nd.on circle{fill:var(--accent);stroke:var(--accent)}
+.wire .pk{fill:var(--bad)}.wire .cp{fill:var(--accent)}
+.wire .tap{stroke:var(--accent);stroke-width:2;stroke-dasharray:4 4}
+.wire .col{fill:var(--accent-soft);stroke:var(--accent)}
+.wire .ct{fill:var(--ink);letter-spacing:0}
+
+footer{padding-block:32px 48px;border-top:1px solid var(--line);font-size:.86rem;color:var(--muted)}
+footer p{max-width:80ch}
+
+@media (max-width:820px){
+  .hero-grid,.two,.two.wide-left{grid-template-columns:minmax(0,1fr)}
+  .steps,.steps.five{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rung{grid-template-columns:minmax(0,1fr)}
+  .sticky{position:static}
+}
+</style>
+</head>
+<body>
+<nav aria-label="Sections"><div class="wrap">
+  <span class="brand">ATTRIBUT-OR</span>
+  <a href="#models">Models</a><a href="#names">Names</a><a href="#evidence">Evidence</a><a href="#access">Who sees what</a><a href="#dprk">DPRK supply chain</a><a href="#ecrime">eCrime brands</a><a href="#sources">Sources</a>
+</div></nav>
+
+<header class="hero"><div class="wrap hero-grid">
+  <div>
+    <div class="eyebrow">Cyber threat attribution, explained</div>
+    <h1>Who did it, and why every vendor calls them something else</h1>
+    <p class="lede">Attribution is a chain of inferences from artefacts to activity clusters to organisations to people. Each vendor builds that chain from its own telemetry, so each draws the cluster boundary in a slightly different place and gives it its own name. This page walks through the models, the names, the evidence, and who has the access to see it.</p>
+  </div>
+  <div class="alias-card" aria-live="polite">
+    <div class="row" style="justify-content:space-between">
+      <span class="eyebrow">One operator set, many names</span>
+      <button class="btn" id="heroNext">Next actor</button>
+    </div>
+    <div id="heroBody"></div>
+  </div>
+</div></header>
+
+<section id="models"><div class="wrap">
+  <div class="eyebrow">Part 1</div>
+  <h2>The models analysts reason with</h2>
+  <p>No single model produces an attribution. Analysts use these together: one to structure an intrusion, one to describe behaviour, one to judge how durable an indicator is, and one to keep their own bias in check.</p>
+  <div class="row" role="tablist" id="modelTabs"></div>
+  <div class="panel" id="modelPanel"></div>
+</div></section>
+
+<section id="names"><div class="wrap">
+  <div class="eyebrow">Part 2</div>
+  <h2>The naming problem</h2>
+  <p>A name is a label on one vendor's cluster of observed activity. Two names are "the same actor" only to the extent the two clusters overlap. Sometimes that is near total (APT28 and Fancy Bear). Sometimes one vendor's group is a slice of another's, or two vendors split what a third lumps together.</p>
+  <div class="scroll"><table id="schemes"></table></div>
+  <p class="muted">In June 2025 Microsoft and CrowdStrike published a joint alias mapping, with Google/Mandiant and Palo Alto Networks Unit 42 contributing. It is a translation table. Each vendor still keeps its own names and its own cluster boundaries.</p>
+
+  <h3>Alias graph and matrix</h3>
+  <div class="row">
+    <div class="row" id="filters" role="group" aria-label="Filter by nexus"></div>
+    <input type="search" id="q" placeholder="Search any name: Cozy Bear, UNC3944, Sleet…" aria-label="Search actor names">
+  </div>
+  <div id="graph"></div>
+  <div class="row muted" style="font-size:.82rem;gap:14px">
+    <span><i class="dot big"></i>tracked cluster</span><span><i class="dot"></i>one vendor's name for it</span><span><i class="dot multi"></i>one name spanning several clusters</span><span><i class="dash"></i>relationship between clusters</span>
+  </div>
+  <p class="muted" id="graphCap" aria-live="polite"></p>
+  <div class="panel" id="rels" aria-live="polite"></div>
+  <div class="scroll"><table id="matrix"></table></div>
+  <div class="panel" id="detail" aria-live="polite"></div>
+</div></section>
+
+<section id="evidence"><div class="wrap">
+  <div class="eyebrow">Part 3</div>
+  <h2>Evidence workbench</h2>
+  <p>Pick a case and switch evidence on and off. Confidence rises with weight and with the number of independent evidence types. Dashed items are complications that pull it back down. The weights are illustrative teaching values, not a scoring standard.</p>
+  <div class="row" id="scenTabs" role="tablist"></div>
+  <div class="two wide-left">
+    <div class="stack" id="evList"></div>
+    <div class="panel sticky stack" id="verdict" aria-live="polite"></div>
+  </div>
+</div></section>
+
+<section id="access"><div class="wrap">
+  <div class="eyebrow">Part 4</div>
+  <h2>Who can see what</h2>
+  <p>The strength of an attribution depends on vantage point. A victim sees one intrusion. A researcher may see the attacker's server. A hyperscaler sees the attacker's accounts. A government may be sitting on the attacker's own keyboard.</p>
+  <div class="row" id="accTabs" role="tablist"></div>
+  <div class="panel" id="accPanel"></div>
+</div></section>
+
+<section id="dprk"><div class="wrap">
+  <div class="eyebrow">Part 5 · Deep dive</div>
+  <h2>North Korea and the open-source supply chain</h2>
+  <p>DPRK operators are tasked with raising hard currency as well as collecting intelligence. Developers hold wallet keys, cloud credentials, signing certificates and CI tokens, and they install code from public registries every day. That makes the open-source supply chain the shortest path from a fake job offer to a nine-figure theft.</p>
+
+  <h3>Who is who under the Reconnaissance General Bureau</h3>
+  <p class="muted">Press reports say "Lazarus" for all of it. Vendors split it into the clusters below. Select one to see its names in the matrix.</p>
+  <div class="org" id="org"></div>
+
+  <h3>The playbook, and the trace each step leaves</h3>
+  <div class="steps" id="steps" role="tablist"></div>
+  <div class="panel" id="stepPanel"></div>
+
+  <h3>Case files</h3>
+  <div class="row" id="caseTabs" role="tablist"></div>
+  <div class="panel" id="casePanel"></div>
+
+  <h3>Signals that recur across DPRK attributions</h3>
+  <div class="two">
+    <ul class="clean">
+      <li><b>Egress habits.</b> Astrill VPN exits, proxies in the Russian Far East, and occasional direct connections from North Korea's small public netblock when a VPN drops.</li>
+      <li><b>Malware lineage.</b> New families reuse loaders, string encoding, C2 protocol structure and build paths from older ones (AppleJeus, BeaverTail, WAVESHAPER).</li>
+      <li><b>Money trail.</b> Stolen assets move through wallets and laundering routes that blockchain analysts have already tied to earlier DPRK heists.</li>
+    </ul>
+    <ul class="clean">
+      <li><b>Persona reuse.</b> The same recruiter profiles, email addresses, GitHub accounts and front companies show up in separate campaigns, and overlap with the remote IT worker scheme.</li>
+      <li><b>Target fit.</b> Crypto exchanges, wallet developers, DeFi teams and the developers who work for them, which matches the regime's revenue mission more than any criminal group's.</li>
+      <li><b>Platform records.</b> Registries, code hosts and cloud providers hold sign-up and login data for the attacker accounts and share it with investigators.</li>
+    </ul>
+  </div>
+</div></section>
+
+<section id="ecrime"><div class="wrap">
+  <div class="eyebrow">Part 6</div>
+  <h2>eCrime: brands, clusters and people</h2>
+  <p>State groups are organisations with a chain of command, so a name can stay stable for a decade. English-speaking eCrime is a loose social scene. The same people work under several brands, brands are shared or copied, and a vendor's cluster number often describes a technique more than a fixed crew. Keep three layers apart: the ecosystem, the tracked cluster, and the brand used in the extortion note.</p>
+  <div class="row" id="ecTabs" role="tablist"></div>
+  <div class="panel" id="ecPanel"></div>
+</div></section>
+
+<footer id="sources"><div class="wrap stack">
+  <h3 style="color:var(--ink)">Sources and limits</h3>
+  <p>Alias mappings are approximations drawn from public vendor reporting as of November 2026: Google Threat Intelligence Group and Mandiant, Microsoft Threat Intelligence, CrowdStrike, Palo Alto Networks Unit 42, Secureworks (Sophos), ESET, Kaspersky, Trend Micro, Proofpoint, Recorded Future, Socket, ReversingLabs, RH-ISAC, plus US DOJ indictments, FBI and CISA advisories, and UK NCSC statements. Where a cell says "no public equivalent", that vendor may track the activity privately or under a name not mapped publicly.</p>
+  <p>Specific 2026 items worth checking against the primary reports before you cite them: the axios npm compromise (<a href="https://cloud.google.com/blog/topics/threat-intelligence/north-korea-threat-actor-targets-axios-npm-package/" target="_blank" rel="noopener">Google's write-up</a>), the BlackFile cluster (<a href="https://rhisac.org/threat-intelligence/extortion-in-the-enterprise-defending-against-blackfile-attacks/" target="_blank" rel="noopener">RH-ISAC and Unit 42</a>), and the StegaBin npm wave (<a href="https://socket.dev/blog/stegabin-26-malicious-npm-packages-use-pastebin-steganography" target="_blank" rel="noopener">Socket</a>). The workbench weights are teaching values only.</p>
+</div></footer>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const NEXUS = {cn:"China", ru:"Russia", kp:"DPRK", ec:"eCrime"};
+const VENDORS = [["g","Google / Mandiant"],["ms","Microsoft"],["cs","CrowdStrike"],["pan","Unit 42"],["sw","Secureworks"],["o","Others"]];
+
+/* ---------- alias data ---------- */
+const ACTORS = [
+ {id:"apt41",n:"cn",name:"APT41",sp:"MSS contractors, Chengdu 404 (DOJ 2020)",g:"APT41",ms:"Brass Typhoon",cs:"Wicked Panda",pan:"",sw:"Bronze Atlas",o:"Winnti, Earth Baku (Trend Micro)",
+  note:"\"Winnti\" began as a malware family name and is shared by several Chinese groups, so it is an umbrella more than a synonym. APT41 also runs financially motivated intrusions alongside state tasking, which makes motive a weak discriminator here."},
+ {id:"volt",n:"cn",name:"Volt Typhoon",sp:"PRC state-sponsored (Five Eyes advisories 2023, 2024)",g:"UNC3236",ms:"Volt Typhoon",cs:"Vanguard Panda",pan:"Insidious Taurus",sw:"Bronze Silhouette",o:"Voltzite (Dragos)",
+  note:"Almost no custom malware, so clustering rests on infrastructure (compromised SOHO routers in the KV-botnet), hands-on-keyboard habits, and victimology: US critical infrastructure with no obvious espionage value, read as pre-positioning."},
+ {id:"salt",n:"cn",name:"Salt Typhoon",sp:"MSS, via contractors incl. Sichuan Juxinhe (US Treasury, Jan 2025)",g:"UNC2286",ms:"Salt Typhoon",cs:"Operator Panda",pan:"",sw:"",o:"Earth Estries (Trend Micro), GhostEmperor (Kaspersky), FamousSparrow (ESET), RedMike (Recorded Future)",
+  note:"A textbook partial overlap. Microsoft equates Salt Typhoon with GhostEmperor and FamousSparrow. ESET says FamousSparrow is a distinct group with links to the others. Same telecom intrusions, different cluster borders."},
+ {id:"apt40",n:"cn",name:"APT40",sp:"MSS Hainan State Security Department (DOJ 2021)",g:"APT40",ms:"Gingham Typhoon",cs:"Kryptonite Panda",pan:"",sw:"Bronze Mohawk",o:"Leviathan, TA423 (Proofpoint)",
+  note:"Close to one-to-one across vendors. Sponsor attribution came from an indictment naming officers and a front company, the kind of evidence only governments can produce."},
+ {id:"apt31",n:"cn",name:"APT31",sp:"MSS Hubei State Security Department (DOJ and UK, March 2024)",g:"APT31",ms:"Violet Typhoon",cs:"Judgment Panda",pan:"",sw:"Bronze Vinewood",o:"Zirconium (old Microsoft name)",
+  note:"Stable mapping. The 2024 indictment tied the cluster to a named front company, Wuhan XRZ."},
+ {id:"mustang",n:"cn",name:"Mustang Panda",sp:"PRC state-aligned",g:"TEMP.Hex",ms:"Twill Typhoon",cs:"Mustang Panda",pan:"Stately Taurus",sw:"Bronze President",o:"Earth Preta (Trend Micro), RedDelta (Recorded Future), TA416 (Proofpoint)",
+  note:"RedDelta and TA416 are best read as overlapping subsets, tracked from network and email telemetry respectively. PlugX, the signature tool, is shared across many Chinese groups, so tooling alone does not identify this actor."},
+ {id:"silk",n:"cn",name:"Silk Typhoon",sp:"MSS contractors (DOJ indictments, March 2025)",g:"",ms:"Silk Typhoon",cs:"Murky Panda",pan:"",sw:"",o:"Hafnium (old Microsoft name)",
+  note:"Press often equates Google's UNC5221 (Ivanti zero-day exploitation) with Silk Typhoon. Google has said it does not treat them as the same cluster. An example of a mapping that circulates widely and that the vendor itself does not endorse."},
+
+ {id:"apt28",n:"ru",name:"APT28",sp:"GRU Unit 26165 (DOJ 2018)",g:"APT28",ms:"Forest Blizzard",cs:"Fancy Bear",pan:"Fighting Ursa",sw:"Iron Twilight",o:"Sofacy, Sednit (ESET), Pawn Storm (Trend Micro), TA422, BlueDelta (Recorded Future)",
+  note:"The cleanest mapping in the table. A decade of consistent tooling (X-Agent, Zebrocy), a named military unit, and indictments mean almost every vendor draws the same boundary."},
+ {id:"sandworm",n:"ru",name:"Sandworm",sp:"GRU Unit 74455 (DOJ 2020)",g:"APT44",ms:"Seashell Blizzard",cs:"Voodoo Bear",pan:"Razing Ursa",sw:"Iron Viking",o:"Telebots (ESET), Electrum (Dragos)",
+  note:"Mandiant only graduated Sandworm to APT44 in April 2024, after tracking it for years under the community name. ICS vendors such as Dragos track only the industrial slice."},
+ {id:"apt29",n:"ru",name:"APT29",sp:"SVR",g:"APT29",ms:"Midnight Blizzard",cs:"Cozy Bear",pan:"Cloaked Ursa",sw:"Iron Hemlock",o:"The Dukes, BlueBravo (Recorded Future), Nobelium (old Microsoft name)",
+  note:"The SolarWinds intruders were tracked as UNC2452 (Mandiant), Nobelium (Microsoft), StellarParticle (CrowdStrike) and Dark Halo (Volexity) for over a year. Mandiant merged UNC2452 into APT29 only in April 2022, once it had enough evidence."},
+ {id:"turla",n:"ru",name:"Turla",sp:"FSB Center 16",g:"Turla",ms:"Secret Blizzard",cs:"Venomous Bear",pan:"Pensive Ursa",sw:"Iron Hunter",o:"Snake, Waterbug (Symantec)",
+  note:"Turla hijacks other actors' infrastructure: Iran's OilRig (NCSC and NSA, 2019) and Pakistan-linked Storm-0156 (Microsoft and Lumen, 2024). A victim looking only at C2 addresses would have blamed the wrong country."},
+ {id:"star",n:"ru",name:"Star Blizzard",sp:"FSB Center 18 (UK and US, Dec 2023)",g:"COLDRIVER / UNC4057",ms:"Star Blizzard",cs:"Gossamer Bear",pan:"",sw:"Iron Frontier",o:"Callisto, TA446 (Proofpoint)",
+  note:"A credential-phishing actor, so email providers see far more of it than endpoint vendors. Google and Microsoft account data drove much of the public attribution."},
+ {id:"gamaredon",n:"ru",name:"Gamaredon",sp:"FSB officers in occupied Crimea (SSU, 2021)",g:"",ms:"Aqua Blizzard",cs:"Primitive Bear",pan:"Trident Ursa",sw:"Iron Tilden",o:"Shuckworm (Symantec), UAC-0010 (CERT-UA), Armageddon",
+  note:"Ukraine's SSU named individual officers and published intercepted phone calls. National CERTs often use their own numbering (UAC-) that sits outside vendor schemes."},
+
+ {id:"lazarus",n:"kp",name:"Lazarus (core)",sp:"RGB",g:"TEMP.Hermit",ms:"Diamond Sleet",cs:"Labyrinth Chollima",pan:"Selective Pisces",sw:"Nickel Academy",o:"Hidden Cobra (US government), Zinc (old Microsoft name)",
+  note:"\"Lazarus Group\" is used by press and some vendors for every RGB operation. CrowdStrike, Microsoft and Mandiant each split it into several clusters, and they do not split it in the same places."},
+ {id:"apt38",n:"kp",name:"APT38 / BlueNoroff",sp:"RGB, financial operations",g:"APT38; UNC1069 (related cluster)",ms:"Sapphire Sleet",cs:"Stardust Chollima",pan:"Alluring Pisces",sw:"Nickel Gladstone",o:"BlueNoroff (Kaspersky), CryptoCore",
+  note:"Google keeps APT38 (bank and SWIFT heists) apart from UNC1069 (crypto and developer targeting, behind the 2026 axios compromise). Other vendors fold both into BlueNoroff or Sapphire Sleet."},
+ {id:"trader",n:"kp",name:"TraderTraitor",sp:"RGB",g:"UNC4899",ms:"Jade Sleet",cs:"",pan:"Slow Pisces",sw:"",o:"TraderTraitor (FBI and CISA)",
+  note:"For the 2023 JumpCloud intrusion, Mandiant named UNC4899 while CrowdStrike attributed it to Labyrinth Chollima. Both said North Korea. They disagreed on which sub-cluster."},
+ {id:"applejeus",n:"kp",name:"AppleJeus operators",sp:"RGB",g:"UNC4736",ms:"Citrine Sleet",cs:"Labyrinth Chollima (subset)",pan:"Gleaming Pisces",sw:"",o:"AppleJeus (malware and campaign name)",
+  note:"Named after a malware family. Behind the 3CX supply chain compromise. CrowdStrike treats it as part of Labyrinth Chollima, which is why CrowdStrike's cluster looks larger than Microsoft's Diamond Sleet."},
+ {id:"kimsuky",n:"kp",name:"Kimsuky",sp:"RGB",g:"APT43",ms:"Emerald Sleet",cs:"Velvet Chollima",pan:"Sparkling Pisces",sw:"Nickel Kimball",o:"TA427 (Proofpoint), Thallium (old Microsoft name)",
+  note:"An espionage cluster that funds itself with small-scale crypto theft. Mandiant graduated it to APT43 in 2023."},
+ {id:"andariel",n:"kp",name:"Andariel",sp:"RGB 3rd Bureau (US advisory, July 2024)",g:"APT45",ms:"Onyx Sleet",cs:"Silent Chollima",pan:"Jumpy Pisces",sw:"Nickel Hyatt",o:"Stonefly (Symantec)",
+  note:"Espionage against defence and nuclear targets, paid for with ransomware against hospitals (Maui). A state actor with a criminal revenue line."},
+ {id:"contagious",n:"kp",name:"Contagious Interview",sp:"DPRK, RGB-linked",g:"UNC5342",ms:"",cs:"Famous Chollima",pan:"CL-STA-0240",sw:"",o:"DeceptiveDevelopment (ESET), Void Dokkaebi (Trend Micro), PurpleBravo (Recorded Future), Tenacious Pungsan (Datadog)",
+  note:"\"Contagious Interview\" is Unit 42's campaign name that became the common name. CrowdStrike's Famous Chollima also covers the remote IT worker scheme, which Unit 42 and Google track as a separate cluster."},
+ {id:"itworkers",n:"kp",name:"Remote IT workers",sp:"DPRK revenue generation",g:"UNC5267",ms:"Jasper Sleet",cs:"Famous Chollima",pan:"CL-STA-0241 (Wagemole)",sw:"Nickel Tapestry",o:"",
+  note:"An insider scheme more than an intrusion set: North Koreans hired under false identities. It shares personas, emails and infrastructure with Contagious Interview, which is why some vendors use one name for both."},
+ {id:"moonstone",n:"kp",name:"Moonstone Sleet",sp:"DPRK",g:"",ms:"Moonstone Sleet",cs:"",pan:"",sw:"",o:"Storm-1789 (earlier Microsoft name)",
+  note:"A Microsoft-defined cluster (fake companies, trojanised PuTTY, malicious npm packages, a fake tank game, later Qilin ransomware) with no widely published one-to-one equivalent elsewhere. Some names simply have no translation."},
+
+ {id:"scattered",n:"ec",name:"Scattered Spider",sp:"English-speaking individuals from The Com",g:"UNC3944",ms:"Octo Tempest",cs:"Scattered Spider",pan:"Muddled Libra",sw:"Gold Harvest",o:"0ktapus (Group-IB campaign), Scatter Swine (Okta)",
+  note:"The vendor names track a style of intrusion (help-desk vishing, SIM swaps, identity provider abuse). Membership turns over with arrests, so the people behind UNC3944 in 2025 are not the people of 2022."},
+ {id:"shiny",n:"ec",name:"ShinyHunters",sp:"Extortion persona and brand",g:"UNC6040, UNC6240, UNC6661 (clusters using the brand)",ms:"",cs:"",pan:"Bling Libra",sw:"",o:"UNC5537 (2024 Snowflake campaign), UNC6395 (Salesloft Drift)",
+  note:"Google does not track a group called ShinyHunters. It tracks separate clusters of activity, some of which sign their extortion notes \"ShinyHunters\". One brand, many cluster numbers."},
+ {id:"lapsus",n:"ec",name:"LAPSUS$",sp:"Teenagers in the UK and Brazil (arrests 2022)",g:"UNC3661",ms:"Strawberry Tempest",cs:"Slippy Spider",pan:"",sw:"",o:"DEV-0537 (earlier Microsoft name)",
+  note:"The 2021 to 2022 crew was largely dismantled by arrests. The name lives on as a brand reused by others."},
+ {id:"slsh",n:"ec",name:"Scattered LAPSUS$ Hunters",sp:"Alliance brand (Telegram, from Aug 2025)",g:"",ms:"",cs:"",pan:"Scattered LAPSUS$ Hunters",sw:"",o:"SLSH, SLH",
+  note:"A name the actors chose by mashing up three labels that analysts and earlier crews had made famous. Vendors mostly keep tracking the underlying clusters and treat SLSH as a public persona."},
+ {id:"blackfile",n:"ec",name:"BlackFile",sp:"Extortion brand, moderate-confidence link to The Com (Unit 42)",g:"UNC6671",ms:"",cs:"Cordial Spider",pan:"CL-CRI-1116",sw:"",o:"O-UNC-045 (Okta)",
+  note:"Vishing-led data theft and extortion against retail and hospitality in early 2026. Reporting says the brand was retired in May 2026 while the same cluster continued under other names, which shows why vendors track clusters and not leak-site logos."},
+ {id:"thecom",n:"ec",name:"The Com",sp:"Not a group: an online ecosystem (FBI PSAs, July 2025)",g:"",ms:"",cs:"",pan:"",sw:"",o:"Subsets named by the FBI: Hacker Com, IRL Com, Extortion Com",
+  note:"Thousands of mostly young, English-speaking people across Discord and Telegram. Scattered Spider, LAPSUS$ and the ShinyHunters-branded clusters recruit from it. Attributing an intrusion to \"The Com\" says where the people come from, not which crew did it."},
+ {id:"fin7",n:"ec",name:"FIN7",sp:"Russian-speaking organised crime (DOJ 2018 arrests)",g:"FIN7",ms:"Sangria Tempest",cs:"Carbon Spider",pan:"",sw:"Gold Niagara",o:"Carbanak (overlapping, not identical), ITG14 (IBM)",
+  note:"FIN7 and Carbanak share tooling and are often used as synonyms. Several vendors treat them as related but separate groups."},
+ {id:"fin11",n:"ec",name:"FIN11 / Cl0p",sp:"Russian-speaking organised crime",g:"FIN11",ms:"Lace Tempest",cs:"Graceful Spider",pan:"",sw:"Gold Tahoe",o:"TA505 (Proofpoint, broader), Cl0p (ransomware and leak-site brand)",
+  note:"Mandiant describes FIN11 as a subset of the activity Proofpoint calls TA505. Cl0p is the brand on the leak site. Three names, three different scopes."}
+];
+
+const SCHEMES = [
+ ["Vendor","State-sponsored","Financial crime","Not yet attributed"],
+ ["Google / Mandiant","APT + number (APT41)","FIN + number (FIN7)","UNC + number, later merged or \"graduated\""],
+ ["Microsoft","Weather by country: Typhoon (China), Blizzard (Russia), Sleet (DPRK), Sandstorm (Iran)","Tempest","Storm + number (was DEV-)"],
+ ["CrowdStrike","Animal by country: Panda, Bear, Chollima, Kitten","Spider (Jackal for hacktivists)","Tracked privately until named"],
+ ["Unit 42","Constellation: Taurus, Ursa, Pisces, Serpens","Libra, Scorpius (ransomware)","CL-STA- (state) and CL-CRI- (crime) clusters"],
+ ["Secureworks","Metal: Bronze, Iron, Nickel, Cobalt","Gold","Not published"],
+ ["Others","Proofpoint TA + number · Recorded Future Red/Blue + word · Trend Micro Earth","Trend Micro Water","Talos UAT- · CERT-UA UAC- · Okta O-UNC- · Recorded Future TAG-"]
+];
+
+/* ---------- hero ---------- */
+let heroI = 8;
+function tiles(a){
+  return '<div class="tiles">'+VENDORS.map(([k,l])=>`<div class="tile ${a[k]?'':'none'}"><b>${l}</b><span>${a[k]||'no public equivalent'}</span></div>`).join('')+'</div>';
+}
+function renderHero(){
+  const a = ACTORS[heroI % ACTORS.length];
+  $('#heroBody').innerHTML = `<div class="who">${a.name}</div><div class="row"><span class="tag t-${a.n}">${NEXUS[a.n]}</span><span class="muted" style="font-size:.86rem">${a.sp}</span></div>${tiles(a)}`;
+}
+$('#heroNext').onclick = ()=>{ heroI += 5; renderHero(); };
+
+/* ---------- models ---------- */
+const DIAMOND = {
+  adversary:["Adversary","The operator and, behind them, the customer who tasked the operation. Almost never observed directly. It is inferred from the other three corners, or revealed by leaks, arrests and indictments.","Pivot example: a persona's email address registered both a C2 domain and a developer account."],
+  infrastructure:["Infrastructure","Domains, IPs, VPS accounts, compromised routers, VPN exits, certificates, registrar and payment details. Cheap to change, but habits in how it is bought and configured persist.","Pivot example: one TLS certificate reused on three servers links three intrusions into one cluster."],
+  capability:["Capability","Malware families, exploits, loaders, build environments and hands-on tradecraft. Private tooling is strong evidence. Shared or leaked tooling (PlugX, Cobalt Strike) is weak.","Pivot example: the same custom string-decryption routine in two backdoors compiled years apart."],
+  victim:["Victim","Who was targeted, what was taken, and when. Victimology reveals intent: a crypto exchange, a dissident's phone and a water utility point to very different customers.","Pivot example: every victim is a telecom carrying traffic for government officials of one country."]
+};
+const MODELS = {
+ diamond:{label:"Diamond Model",html:()=>`<div class="two"><div class="diamond">
+   <svg viewBox="0 0 360 300" role="group" aria-label="Diamond model">
+    <path class="edge" d="M180 40 L50 150 L180 260 L310 150 Z M180 40 L180 260 M50 150 L310 150"/>
+    ${[["adversary",180,40],["infrastructure",50,150],["capability",310,150],["victim",180,260]].map(([k,x,y])=>`<g class="node" data-k="${k}" tabindex="0" role="button" aria-label="${DIAMOND[k][0]}"><circle cx="${x}" cy="${y}" r="38"/><text x="${x}" y="${y+4}">${k==='infrastructure'?'Infra':DIAMOND[k][0]}</text></g>`).join('')}
+    <text class="meta" x="180" y="292">Select a corner</text>
+   </svg></div>
+   <div class="stack"><div id="diaText" class="stack"></div>
+   <p class="muted">Every intrusion event has all four corners. Analysts pivot along the edges: from a malware sample to its C2, from the C2 to other victims, from the victims to a likely intent. Events that share corners are grouped into an activity cluster, and the cluster is what gets a name.</p></div></div>`,
+   init(){ const set=k=>{document.querySelectorAll('.diamond .node').forEach(n=>n.classList.toggle('on',n.dataset.k===k)); const d=DIAMOND[k]; $('#diaText').innerHTML=`<h3>${d[0]}</h3><p>${d[1]}</p><p class="mono muted">${d[2]}</p>`;};
+     document.querySelectorAll('.diamond .node').forEach(n=>{n.onclick=()=>set(n.dataset.k); n.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();set(n.dataset.k)}}}); set('infrastructure'); }},
+ ladder:{label:"Attribution ladder",html:()=>`<div class="stack"><p>Attribution is not one question. Each rung needs more evidence, and different kinds of organisation can reach different rungs.</p><div class="ladder">
+   ${[["1 · Activity","\"These five intrusions are related.\" Shared infrastructure, tooling and tradecraft. Any competent responder can get here.","UNC2452, CL-STA-0240, Storm-1789"],
+      ["2 · Group","\"This is a persistent team with its own habits.\" Needs sustained visibility over months or years.","APT29, Scattered Spider"],
+      ["3 · Country","\"The team works in this state's interest.\" Victimology, working hours, language, strategic fit.","\"China-nexus\", \"DPRK-aligned\""],
+      ["4 · Organisation","\"It is this unit or contractor.\" Usually needs government sources, leaks or legal process.","GRU Unit 74455, Chengdu 404"],
+      ["5 · Person","\"These named individuals did it.\" Indictment-grade evidence: account records, seized devices, travel, payments.","Park Jin Hyok (2018), the six Sandworm officers (2020)"]]
+     .map(r=>`<div class="rung"><b>${r[0]}</b><div><div>${r[1]}</div><div class="mono muted">${r[2]}</div></div></div>`).join('')}
+   </div><p class="muted">Vendors mostly work on rungs 1 to 3. Mandiant's UNC to APT or FIN "graduation" is the move from rung 1 to rung 2. Governments own rungs 4 and 5.</p></div>`},
+ pyramid:{label:"Pyramid of Pain",html:()=>`<div class="two"><div class="pyr">
+   ${[["TTPs","Hard to change. Best for clustering.",38],["Tools","Custom tooling is costly to replace.",50],["Network and host artefacts","User agents, mutexes, paths.",64],["Domain names","Cheap, but registration habits persist.",76],["IP addresses","Changed in minutes.",88],["Hash values","Changed by recompiling.",100]]
+     .map(r=>`<div style="width:${r[2]}%"><b>${r[0]}</b><br><span class="muted">${r[1]}</span></div>`).join('')}
+   </div><div class="stack"><p>David Bianco's pyramid ranks indicators by how much it costs the adversary to change them. The same ordering tells you how much an indicator is worth for attribution.</p>
+   <p>A matching hash proves the same file. A matching IP may be a shared VPS or a hijacked router. A consistent way of working across years, described in MITRE ATT&amp;CK technique IDs, is much harder to shed and much harder to fake.</p>
+   <p class="muted">The catch: TTPs can be copied. Help-desk vishing made famous by Scattered Spider is now used by several unrelated crews, so behaviour clusters activity well but identifies people poorly.</p></div></div>`},
+ attack:{label:"ATT&amp;CK and the kill chain",html:()=>`<div class="stack"><p>The Lockheed Martin kill chain orders an intrusion in time (reconnaissance, delivery, exploitation, installation, command and control, actions on objectives). MITRE ATT&amp;CK gives a shared vocabulary for what the adversary did at each stage.</p>
+   <ul class="clean"><li><b>For clustering:</b> two intrusions with the same sequence of rare techniques, in the same order, with the same operator mistakes, are likely the same team.</li>
+   <li><b>For naming:</b> ATT&amp;CK keeps its own group list (G0016 for APT29, G1015 for Scattered Spider) with associated names, which works as a neutral index across vendors.</li>
+   <li><b>Limit:</b> ATT&amp;CK describes behaviour, not identity. Many groups use T1566 phishing and T1078 valid accounts. Specific procedures matter more than technique IDs.</li></ul></div>`},
+ conf:{label:"Confidence and competing hypotheses",html:()=>`<div class="two"><div class="stack"><h3>Estimative language</h3>
+   <p>Attribution statements use the intelligence community's vocabulary. Confidence describes the quality of the sourcing, not how likely the claim is.</p>
+   <ul class="clean"><li><span class="tag t-good">High</span> Multiple independent, high-quality sources. Still can be wrong.</li><li><span class="tag t-warn">Moderate</span> Credible and plausible, but not corroborated enough.</li><li><span class="tag t-bad">Low</span> Fragmentary, or plausible but poorly sourced.</li></ul></div>
+   <div class="stack"><h3>Analysis of competing hypotheses</h3>
+   <p>List every plausible actor, then ask of each piece of evidence: which hypotheses does this contradict? Evidence consistent with everything (Cobalt Strike, a bulletproof host) discriminates nothing.</p>
+   <p>The discipline exists because adversaries plant evidence. Olympic Destroyer (2018) carried a forged Rich header copied from Lazarus malware. Sandworm was identified only after analysts noticed the header did not match the code.</p>
+   <p class="muted">Rid and Buchanan's Q Model adds the layers above the technical: operational (who had the capacity), strategic (who benefits), and communication (what a government chooses to say in public).</p></div></div>`}
+};
+function tabs(el, items, cur, onpick){
+  el.innerHTML = items.map(([k,l])=>`<button class="btn" role="tab" aria-selected="${k===cur}" data-k="${k}">${l}</button>`).join('');
+  el.querySelectorAll('button').forEach(b=>b.onclick=()=>onpick(b.dataset.k));
+}
+function showModel(k){ tabs($('#modelTabs'),Object.entries(MODELS).map(([k,m])=>[k,m.label]),k,showModel); $('#modelPanel').innerHTML=MODELS[k].html(); MODELS[k].init&&MODELS[k].init(); }
+
+/* ---------- names ---------- */
+let filt='all', sel='salt';
+$('#schemes').innerHTML = '<thead><tr>'+SCHEMES[0].map(h=>`<th>${h}</th>`).join('')+'</tr></thead><tbody>'+SCHEMES.slice(1).map(r=>'<tr>'+r.map((c,i)=>i?`<td>${c}</td>`:`<td><b>${c}</b></td>`).join('')+'</tr>').join('')+'</tbody>';
+function hl(s,q){ if(!q||!s) return s; const i=s.toLowerCase().indexOf(q); return i<0?s:s.slice(0,i)+'<mark>'+s.slice(i,i+q.length)+'</mark>'+s.slice(i+q.length); }
+function renderMatrix(){
+  const q=$('#q').value.trim().toLowerCase();
+  $('#filters').innerHTML=[['all','All'],...Object.entries(NEXUS)].map(([k,l])=>`<button class="btn" aria-pressed="${filt===k}" data-k="${k}">${l}</button>`).join('');
+  $('#filters').querySelectorAll('button').forEach(b=>b.onclick=()=>{filt=b.dataset.k;renderMatrix();buildGraph();renderRels()});
+  const rows=ACTORS.filter(a=>(filt==='all'||a.n===filt)&&(!q||[a.name,a.sp,...VENDORS.map(v=>a[v[0]])].join(' ').toLowerCase().includes(q)));
+  $('#matrix').innerHTML='<thead><tr><th>Common name</th>'+VENDORS.map(v=>`<th>${v[1]}</th>`).join('')+'</tr></thead><tbody>'+
+    (rows.length?rows.map(a=>`<tr data-id="${a.id}" class="${a.id===sel?'on':''}" tabindex="0"><td><span class="tag t-${a.n}">${NEXUS[a.n]}</span><br>${hl(a.name,q)}</td>`+VENDORS.map(v=>a[v[0]]?`<td>${hl(a[v[0]],q)}</td>`:'<td class="nil">no public equivalent</td>').join('')+'</tr>').join('')
+      :`<tr><td colspan="7">No name matches "${q.replace(/</g,'&lt;')}". Try a vendor suffix such as Typhoon, Bear or Libra.</td></tr>`)+'</tbody>';
+  $('#matrix').querySelectorAll('tbody tr[data-id]').forEach(r=>{r.onclick=()=>pick(r.dataset.id,false); r.onkeydown=e=>{if(e.key==='Enter')pick(r.dataset.id,false)}});
+}
+function renderDetail(){
+  const a=ACTORS.find(x=>x.id===sel); if(!a) return;
+  $('#detail').innerHTML=`<div class="stack"><div class="row"><span class="tag t-${a.n}">${NEXUS[a.n]}</span><h3>${a.name}</h3></div>
+    <div><span class="eyebrow">Assessed sponsor or origin</span><p>${a.sp}</p></div>${tiles(a)}
+    <div><span class="eyebrow">Why the names do or do not line up</span><p>${a.note}</p></div></div>`;
+}
+function pick(id,scroll){ sel=id; let re=false; if(filt!=='all'&&ACTORS.find(a=>a.id===id).n!==filt){filt='all';re=true} renderMatrix(); renderDetail(); renderRels(); re?buildGraph():paintGraph(); if(scroll) $('#detail').scrollIntoView({block:'center'}); }
+$('#q').oninput=()=>{renderMatrix();paintGraph()};
+
+/* ---------- alias graph (d3-force) ---------- */
+const RT={org:"same parent",tool:"shared tools or playbook",ops:"cooperation",people:"shared people",brand:"name overlap",split:"umbrella split",rival:"same targets, no coordination"};
+const STRUCT={
+ cn:"China's operators sit in two systems. The Ministry of State Security works through provincial bureaus that hire private contractors, so groups share staff, malware and exploits through a common marketplace. The PLA runs its own units, and Volt Typhoon is generally placed on that side. Because PlugX, ShadowPad and relay networks of hacked routers are shared so widely, a tooling or infrastructure match between two Chinese clusters is weak evidence that they are one group.",
+ ru:"Three services, each with its own units, which compete more than they cooperate. GRU (military intelligence) runs APT28 and Sandworm. The FSB (domestic security) runs Turla, Star Blizzard and Gamaredon. The SVR (foreign intelligence) runs APT29. Ties inside a service are real. Across services, groups have worked the same victim without coordinating.",
+ kp:"Nearly everything reports to the Reconnaissance General Bureau, and operators, code and infrastructure move between teams as tasking changes. That is why vendors split the picture differently. The remote IT workers answer to other state bodies but share personas and infrastructure with the hacking teams, and the proceeds of all of it go through the same laundering networks.",
+ ec:"There are no organisations here, only a social scene and the crews that form out of it. Relationships are about people and reputation: shared members, borrowed names, copied playbooks and rented ransomware. The Russian-speaking FIN groups are a separate world, with business-like dealings between distinct groups."
+};
+const RELS=[
+ ["apt40","apt31","org","Both are run by MSS provincial bureaus (Hainan and Hubei) through front companies."],
+ ["silk","salt","org","Both operate through MSS contractors, and both breached US government-related targets in 2024."],
+ ["apt41","silk","people","Same contractor marketplace. The i-Soon leak showed dealings with Chengdu 404, and DOJ charged i-Soon staff and Silk Typhoon-linked hackers in the same March 2025 action."],
+ ["apt41","salt","tool","Salt Typhoon's SnappyBee (Deed RAT) descends from ShadowPad, which began with APT41 and spread across Chinese groups."],
+ ["apt41","mustang","tool","Both use PlugX, supplied through shared developers. Tooling alone cannot tell them apart."],
+ ["volt","salt","brand","Often confused because of the names. Different missions: Volt Typhoon pre-positions for disruption, Salt Typhoon collects intelligence."],
+
+ ["apt28","sandworm","ops","Both GRU. In 2016 Unit 26165 stole the DNC material and Unit 74455 helped release it, according to the US indictment."],
+ ["apt28","apt29","rival","Different services. Both were inside the DNC network in 2016, apparently unaware of each other."],
+ ["turla","gamaredon","ops","Both FSB. ESET reported Gamaredon tooling being used to deploy Turla's Kazuar backdoor in Ukraine (2025)."],
+ ["turla","star","org","Both FSB: Center 16 and Center 18."],
+ ["star","gamaredon","org","Both tied to FSB Center 18. For Gamaredon that comes from Ukraine's SSU."],
+ ["apt29","star","rival","SVR and FSB phishing the same diplomats, think tanks and NGOs."],
+
+ ["lazarus","apt38","split","The financial arm. Split out by vendors after the bank heists of 2015 to 2018."],
+ ["lazarus","applejeus","split","A crypto-focused subgroup. CrowdStrike keeps it inside Labyrinth Chollima."],
+ ["lazarus","trader","split","Same lineage. Vendors disagreed on which side the JumpCloud intrusion belonged to."],
+ ["applejeus","trader","tool","Both deliver trojanised crypto trading apps. TraderTraitor continues the AppleJeus approach."],
+ ["apt38","trader","ops","Stolen crypto from both converges on the same laundering networks."],
+ ["lazarus","andariel","org","Sister units under the RGB. Andariel is tied to its 3rd Bureau."],
+ ["lazarus","kimsuky","org","Both RGB. Mandiant has seen Kimsuky borrow other RGB teams' malware when tasking overlapped."],
+ ["lazarus","moonstone","tool","Microsoft says Moonstone Sleet first reused Diamond Sleet code and methods, then moved to its own tooling."],
+ ["andariel","moonstone","tool","Both moved into ransomware with criminal partners: Andariel with Play, Moonstone Sleet with Qilin."],
+ ["contagious","itworkers","people","Shared recruiter personas, email accounts, front companies and infrastructure."],
+ ["apt38","contagious","brand","Some 2026 axios write-ups merged these. Google tracks them apart as UNC1069 and UNC5342."],
+
+ ["thecom","scattered","people","Scattered Spider's callers and SIM swappers were recruited in Com channels."],
+ ["thecom","shiny","people","The people now using the ShinyHunters name are Com members."],
+ ["thecom","lapsus","people","The original crew came out of the same scene."],
+ ["thecom","slsh","brand","A persona run from Com Telegram channels."],
+ ["thecom","blackfile","people","Unit 42 links the cluster to The Com with moderate confidence."],
+ ["slsh","scattered","brand","Takes a third of its name, and reportedly some members, from Scattered Spider."],
+ ["slsh","shiny","brand","The ShinyHunters persona is the most active voice in SLSH channels."],
+ ["slsh","lapsus","brand","Borrows the name and the loud Telegram style. The original crew was arrested in 2022."],
+ ["scattered","shiny","people","Overlapping membership. In 2025 both ran Salesforce-themed vishing with near-identical tradecraft."],
+ ["scattered","lapsus","people","Researchers report overlapping members, and both used SIM swaps and help-desk calls."],
+ ["blackfile","scattered","tool","Same help-desk vishing playbook. Vendors track it as a separate cluster."],
+ ["blackfile","shiny","ops","Part of the same early-2026 wave of SSO vishing and SaaS extortion, reported alongside the ShinyHunters-branded clusters."],
+ ["fin7","fin11","ops","Microsoft saw FIN7 (Sangria Tempest) deploy Cl0p ransomware in 2023. A business deal between two separate groups."]
+];
+function renderRels(){
+  const nx=filt!=='all'?filt:ACTORS.find(a=>a.id===sel).n, hit=r=>r[0]===sel||r[1]===sel;
+  const rs=RELS.filter(r=>ACTORS.find(a=>a.id===r[0]).n===nx).sort((a,b)=>hit(b)-hit(a));
+  const nb=id=>`<button class="lnk" data-id="${id}">${actorName(id)}</button>`;
+  $('#rels').innerHTML=`<div class="stack"><div class="row"><span class="tag t-${nx}">${NEXUS[nx]}</span><h3>How the ${NEXUS[nx]} clusters relate</h3></div><p>${STRUCT[nx]}</p>
+   <div class="rels">${rs.map(r=>`<div class="rel ${hit(r)?'on':''}"><div class="row">${nb(r[0])}<span class="muted">and</span>${nb(r[1])}</div><div><span class="tag t-acc">${RT[r[2]]}</span></div><div>${r[3]}</div></div>`).join('')}</div></div>`;
+  $('#rels').querySelectorAll('.lnk').forEach(b=>b.onclick=()=>pick(b.dataset.id,false));
+}
+let G=null, gW=0;
+const actorName=id=>ACTORS.find(a=>a.id===id).name;
+function buildGraph(){
+  const box=$('#graph');
+  if(!window.d3){ box.innerHTML='<p class="muted" style="padding:16px">The graph needs the D3 library, which did not load. The table below has the same data.</p>'; return; }
+  if(G) G.sim.stop();
+  const W=Math.max(300,box.clientWidth), H=W<640?620:660; gW=W;
+  const all=filt==='all', lite=all&&W<640;
+  const acts=ACTORS.filter(a=>all||a.n===filt), ids=new Set(acts.map(a=>a.id));
+  let nodes=acts.map(a=>({id:a.id,hub:true,n:a.n,label:a.name,actors:[a.id]})), links=[]; const by={};
+  acts.forEach(a=>VENDORS.forEach(([k,vl])=>{ if(!a[k]) return;
+    a[k].split(/[,;]\s*(?![^(]*\))/).forEach(raw=>{
+      const nm=raw.replace(/\s*\([^)]*\)/g,'').replace(/^.*:\s*/,'').trim(); if(!nm) return;
+      const key=k+'|'+nm.toLowerCase(); let nd=by[key];
+      if(!nd){ nd=by[key]={id:key,n:a.n,label:nm,raw:raw.trim(),v:vl,actors:[]}; nodes.push(nd); }
+      if(!nd.actors.includes(a.id)){ nd.actors.push(a.id); links.push({source:a.id,target:key}); }
+    }); }));
+  if(lite){ const drop=new Set(nodes.filter(d=>!d.hub&&d.actors.length<2).map(d=>d.id)); nodes=nodes.filter(d=>!drop.has(d.id)); links=links.filter(l=>!drop.has(l.target)); }
+  RELS.forEach(r=>{ if(ids.has(r[0])&&ids.has(r[1])) links.push({source:r[0],target:r[1],rel:r[3],type:r[2]}); });
+  const C=all?{cn:[.26,.27],ru:[.74,.26],kp:[.27,.72],ec:[.74,.73]}:null;
+  const svg=d3.select(box).html('').append('svg').attr('viewBox',`0 0 ${W} ${H}`).attr('role','img').attr('aria-label','Network graph of threat clusters and the names vendors give them');
+  const link=svg.append('g').selectAll('line').data(links).join('line');
+  const elab=svg.append('g').selectAll('text').data(links.filter(l=>l.rel)).join('text').text(l=>RT[l.type]);
+  const node=svg.append('g').selectAll('g').data(nodes).join('g');
+  node.append('circle').attr('r',d=>d.hub?11:d.actors.length>1?7:4.5);
+  node.append('text').attr('dy',d=>d.hub?24:-9).text(d=>d.label);
+  const draw=()=>{
+    nodes.forEach(d=>{ d.x=Math.max(18,Math.min(W-18,d.x)); d.y=Math.max(18,Math.min(H-26,d.y)); });
+    link.attr('x1',l=>l.source.x).attr('y1',l=>l.source.y).attr('x2',l=>l.target.x).attr('y2',l=>l.target.y);
+    elab.attr('x',l=>(l.source.x+l.target.x)/2).attr('y',l=>(l.source.y+l.target.y)/2-4);
+    node.attr('transform',d=>`translate(${d.x},${d.y})`);
+  };
+  const sim=d3.forceSimulation(nodes)
+    .force('link',d3.forceLink(links).id(d=>d.id).distance(l=>l.rel?(all?120:180):(all?32:60)).strength(l=>l.rel?.12:.8))
+    .force('charge',d3.forceManyBody().strength(d=>d.hub?(all?-180:-460):(all?-26:-100)))
+    .force('collide',d3.forceCollide(d=>d.hub?(all?24:36):(all?8:17)))
+    .force('x',d3.forceX(d=>W*(C?C[d.n][0]:.5)).strength(.09))
+    .force('y',d3.forceY(d=>H*(C?C[d.n][1]:.5)).strength(.11))
+    .on('tick',draw);
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){ sim.stop(); sim.tick(260); draw(); }
+  node.on('mouseenter',(e,d)=>{paintGraph(d);graphCap(d)}).on('mouseleave',()=>{paintGraph();graphCap()})
+      .on('click',(e,d)=>pick(d.hub?d.id:d.actors[0],false))
+      .call(d3.drag()
+        .on('start',(e,d)=>{ if(!e.active) sim.alphaTarget(.3).restart(); d.fx=d.x; d.fy=d.y; })
+        .on('drag',(e,d)=>{ d.fx=e.x; d.fy=e.y; })
+        .on('end',(e,d)=>{ if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }));
+  G={sim,node,link,links,lite,elab}; paintGraph(); graphCap();
+}
+function paintGraph(h){
+  if(!G) return;
+  const q=$('#q').value.trim().toLowerCase();
+  const near=id=>{ const s=new Set([id]); G.links.forEach(l=>{ if(l.source.id===id) s.add(l.target.id); if(l.target.id===id) s.add(l.source.id); }); return s; };
+  let keep=null;
+  if(h){ keep=new Set([h.id]); (h.hub?[h.id]:h.actors).forEach(id=>near(id).forEach(x=>keep.add(x))); }
+  const selNear=near(sel);
+  G.node.attr('class',d=>['gn',d.hub?'hub':'al',d.n,(!d.hub&&d.actors.length>1)?'multi':'',d.id===sel?'sel':'',
+    (!d.hub&&(filt!=='all'||selNear.has(d.id)||(keep&&keep.has(d.id))))?'show':'',
+    (q&&d.label.toLowerCase().includes(q))?'hit':'',(keep&&!keep.has(d.id))?'dim':''].join(' '));
+  G.link.attr('class',l=>['gl',l.rel?'rel':'',(l.source.id===sel||l.target.id===sel)?'on':'',
+    (keep&&!(keep.has(l.source.id)&&keep.has(l.target.id)))?'dim':''].join(' '));
+  G.elab.attr('class',l=>{ const s=l.source.id,t=l.target.id, hov=h&&h.hub&&(s===h.id||t===h.id);
+    return 'gt'+((hov||(!h&&(filt!=='all'||s===sel||t===sel)))?' show':''); });
+}
+function graphCap(d){
+  const el=$('#graphCap');
+  if(!d){ el.textContent='Drag any node. Select a cluster to open its notes below.'+(G&&G.lite?' On a narrow screen the full view shows only clusters and shared names. Pick a nexus to see every name.':' Hover a node to trace its connections.'); return; }
+  if(d.hub){ const a=ACTORS.find(x=>x.id===d.id), rs=RELS.filter(r=>r[0]===d.id||r[1]===d.id).map(r=>actorName(r[0]===d.id?r[1]:r[0])+' ('+RT[r[2]]+')');
+    el.textContent=a.name+'. '+a.sp+'.'+(rs.length?' Linked to: '+rs.join(' · ')+'.':''); }
+  else el.textContent=d.v+': '+d.raw+'. '+(d.actors.length>1?'One vendor name that spans '+d.actors.length+' clusters here: '+d.actors.map(actorName).join(', ')+'.':'A name for '+actorName(d.actors[0])+'.');
+}
+let rz; addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{ if(Math.abs($('#graph').clientWidth-gW)>40) buildGraph(); },200); });
+
+/* ---------- workbench ---------- */
+const SCEN = {
+ cn:{label:"China: pre-positioning in utilities",claim:"a PRC state-sponsored actor (Volt Typhoon) conducted this intrusion",ev:[
+  ["Infrastructure","C2 traffic is proxied through compromised end-of-life SOHO routers that belong to the KV-botnet.",18,"med",1],
+  ["Tooling","No custom malware. Operators use built-in tools only: ntdsutil, netsh portproxy, wmic.",6,"high",1],
+  ["Tradecraft","The same command sequences, in the same order, with the same quirks, appear across unrelated victims.",14,"low",1],
+  ["Goals","Victims are water, power, port and telecom operators, several on Guam. Nothing of espionage value is taken. Access is kept and left idle.",20,"low",0],
+  ["Timing","Hands-on activity clusters in the UTC+8 working day.",8,"med",0],
+  ["Government","Five Eyes joint advisories (May 2023, Feb 2024) and an FBI court-authorised operation that removed the botnet malware from routers.",25,"low",0],
+  ["Complication","Covert relay networks built from hacked routers are shared between several China-nexus groups, so the infrastructure alone does not single out one of them.",-8,"",1]]},
+ ru:{label:"Russia: destructive attack on a grid",claim:"GRU Unit 74455 (Sandworm) conducted this attack",ev:[
+  ["Tooling","The wiper and ICS payload share code and design with Industroyer and earlier Sandworm wipers.",20,"med",1],
+  ["Infrastructure","Staging servers and C2 overlap with earlier operations against Ukrainian ministries.",14,"med",1],
+  ["Goals","The outage is timed with missile strikes on the same region's energy network.",18,"low",1],
+  ["Persona","A self-described hacktivist Telegram channel posts data from the victim within hours of the wipe.",10,"med",0],
+  ["Victim-side","CERT-UA incident response recovers scheduled tasks and Group Policy deployment identical to prior cases.",10,"low",0],
+  ["Government","DOJ's 2020 indictment names six Unit 74455 officers for earlier attacks using the same tool family. Allied governments publicly concur.",25,"low",0],
+  ["Complication","This actor plants false flags. Olympic Destroyer (2018) carried a forged Rich header imitating Lazarus.",-10,"",1]]},
+ kp:{label:"DPRK: malicious npm packages",claim:"a North Korean state actor (the Contagious Interview cluster) published these packages",ev:[
+  ["Infrastructure","C2 servers are administered through Astrill VPN exits and Russian Far East IP ranges seen in earlier DPRK operations.",16,"med",1],
+  ["Tooling","A BeaverTail-style JavaScript stealer fetches an InvisibleFerret-style Python backdoor, with the same obfuscation and campaign ID format as hundreds of earlier packages.",18,"med",1],
+  ["Goals","The stealer goes for browser wallet extensions, macOS Keychain and crypto keys. No ransom, no resale of access.",12,"low",1],
+  ["Persona","Victims were sent the package by a LinkedIn \"recruiter\" during a coding test. The persona's email also appears in the remote IT worker scheme.",12,"med",0],
+  ["Platform data","The registry and code host hold sign-up emails, publish times and login IPs for the throwaway accounts, linking them to each other.",14,"low",0],
+  ["Money trail","Stolen funds move into wallets that blockchain analysts previously tied to DPRK laundering.",16,"low",0],
+  ["Government","The FBI seized a front-company domain used in the same campaign (BlockNovas, April 2025).",14,"low",0],
+  ["Complication","The JavaScript is easy to copy. Criminal copycats have reused published samples.",-6,"",1]]},
+ ec:{label:"eCrime: help-desk vishing and extortion",claim:"the cluster tracked as Scattered Spider (UNC3944) conducted this intrusion",ev:[
+  ["Tradecraft","A native English speaker phones the help desk as an employee and gets MFA reset. The identity provider is then abused to reach SaaS data.",12,"high",1],
+  ["Infrastructure","Phishing domains follow a known pattern (company-sso, company-servicedesk), from the same registrar, serving the same kit.",16,"med",1],
+  ["Tooling","Legitimate remote-access tools and a rented ransomware affiliate programme.",6,"high",0],
+  ["Persona","A Telegram channel claims the attack and posts sample data.",8,"high",1],
+  ["Money trail","The ransom wallet connects on-chain to earlier payments attributed to the same crew.",12,"low",0],
+  ["Law enforcement","Arrests, seized phones and chat logs tie named individuals to the calls and the wallets.",28,"low",0],
+  ["Complication","Membership is fluid. The same people work under several brands, and other crews have copied the vishing playbook.",-10,"",1]]}
+};
+let scen='kp'; const picked={};
+function renderScen(){
+  tabs($('#scenTabs'),Object.entries(SCEN).map(([k,s])=>[k,s.label]),scen,k=>{scen=k;renderScen()});
+  const s=SCEN[scen]; if(!picked[scen]) picked[scen]=s.ev.map(e=>!!e[4]);
+  $('#evList').innerHTML=s.ev.map((e,i)=>`<label class="ev ${e[2]<0?'neg':''}" for="ev-${scen}-${i}"><input type="checkbox" id="ev-${scen}-${i}" data-i="${i}" ${picked[scen][i]?'checked':''}>
+    <div><div>${e[1]}</div><div class="meta"><span class="tag ${e[2]<0?'t-bad':'t-acc'}">${e[0]}</span><span class="tag ${e[2]<0?'t-bad':'t-acc'}">${e[2]>0?'+':''}${e[2]}</span>${e[3]?`<span class="tag t-${e[3]==='low'?'good':e[3]==='med'?'warn':'bad'}">${e[3]==='low'?'hard to fake':e[3]==='med'?'can be imitated':'easy to fake or share'}</span>`:''}</div></div></label>`).join('');
+  $('#evList').querySelectorAll('input').forEach(c=>c.onchange=()=>{picked[scen][+c.dataset.i]=c.checked;renderVerdict()});
+  renderVerdict();
+}
+function renderVerdict(){
+  const s=SCEN[scen], on=s.ev.filter((e,i)=>picked[scen][i]);
+  const score=Math.max(0,Math.min(100,on.reduce((t,e)=>t+e[2],0)));
+  const cats=new Set(on.filter(e=>e[2]>0).map(e=>e[0])).size;
+  const hard=on.filter(e=>e[3]==='low').length;
+  let lvl='Low', cls='bad';
+  if(score>=70&&cats>=4&&hard>=2){lvl='High';cls='good'} else if(score>=40&&cats>=2){lvl='Moderate';cls='warn'}
+  let gap = cats<4 ? `Only ${cats} independent evidence type${cats===1?'':'s'} selected. High confidence needs corroboration from at least four.` :
+            hard<2 ? 'Most of the selected evidence can be imitated or is shared between actors. Add something hard to fake.' :
+            score<70 ? 'The independent sources agree, but the total weight is still short of high confidence.' : 'Several independent sources agree, including ones the adversary cannot easily forge.';
+  if(!on.length) gap='Nothing selected. With no evidence there is no assessment to make.';
+  $('#verdict').innerHTML=`<span class="eyebrow">Assessment</span><div class="verdict" style="color:var(--${cls})">${lvl} confidence</div>
+    <div class="meter" role="img" aria-label="Evidence weight ${score} of 100"><i style="width:${score}%"></i></div>
+    <div class="row mono muted" style="justify-content:space-between"><span>weight ${score}/100</span><span>${cats} evidence types</span><span>${hard} hard to fake</span></div>
+    <p>"We assess with <b>${lvl.toLowerCase()}</b> confidence that ${s.claim}."</p><p class="muted">${gap}</p>`;
+}
+
+/* ---------- access ---------- */
+const ACC = {
+ victim:{label:"Victim and responder",sees:"One intrusion from the inside: endpoints, logs, malware samples, what was taken.",
+  how:["EDR telemetry and disk or memory forensics","Firewall, proxy, DNS and identity provider logs","Malware reverse engineering from recovered samples","Ransom notes and negotiation chats"],
+  ex:["A responder working a single case usually reaches \"this matches public reporting on X\", and no further.","IR firms see hundreds of cases a year, which is how Mandiant can link intrusions into UNC clusters."],
+  blind:"Cannot see the attacker's side of the connection, other victims, or who is at the keyboard."},
+ research:{label:"Researchers on adversary infrastructure",sees:"The attacker's own servers, panels, logs and mistakes, when they are exposed or handed over.",
+  how:["Internet-wide scanning and fingerprinting (certificates, JARM, default C2 responses) to find servers before they are used","Passive DNS, WHOIS and certificate transparency pivots from one known server to the rest","Open directories on staging servers that expose tools, scripts, victim lists and operator shell history","Unauthenticated or misconfigured C2 panels and APIs","Sinkholing expired C2 domains to watch victims check in","Operators who infect their own machines with infostealers, or upload test builds to public sandboxes","Leaks from inside: Conti chats (2022), I-Soon files (Feb 2024), Black Basta chats (2025), the Kimsuky-attributed workstation dump published in Phrack (Aug 2025)"],
+  ex:["SecurityScorecard's \"Phantom Circuit\" work (Jan 2025) found admin panels on Lazarus C2 servers and followed operator logins back through Astrill VPN and proxies in Russia to North Korean IP addresses.","Kaspersky found the forged Rich header in Olympic Destroyer by comparing it byte for byte with the real Lazarus sample it was copied from.","In January 2026 a security firm reported steering Scattered LAPSUS$ Hunters into a honeypot and recording their activity."],
+  blind:"Bounded by law. Logging in to a server you do not own is an offence in most countries even if a criminal runs it. Researchers rely on what is exposed without authentication, on hosting providers who cooperate, and on law-enforcement partners. Findings are snapshots, and actors read the blogs and fix their mistakes."},
+ vendor:{label:"Vendors and hyperscalers",sees:"The attacker as a customer: their accounts, sign-ins, mailboxes, VMs, repositories, packages and payments on the vendor's own platform.",
+  how:["Microsoft: Entra ID and Microsoft 365 sign-ins, attacker-created Azure tenants, Defender telemetry from over a billion devices","Google: Gmail and Workspace accounts used for phishing or as C2, Safe Browsing, VirusTotal uploads, Cloud projects, plus Mandiant casework","Amazon: the MadPot honeypot fleet and AWS network telemetry","Backbone and CDN operators (Lumen Black Lotus Labs, Cloudflare, Team Cymru): netflow that shows who talks to a C2 server and who administers it","GitHub, npm, PyPI: sign-up metadata, publish logs and takedown power for malicious packages","Blockchain analytics firms and exchanges: wallet clustering and KYC records","AI labs: usage by banned accounts, published in periodic threat reports"],
+  ex:["Lumen's netflow exposed the KV-botnet behind Volt Typhoon, and showed Turla operating from inside another actor's C2 servers (Dec 2024).","Microsoft and Google notify users targeted by government-backed actors, something only the mailbox provider can detect.","Microsoft's Digital Crimes Unit uses civil court orders to seize actor domains, for example Star Blizzard's in October 2024.","For the 2026 axios compromise Google tied the operator to a specific Astrill VPN node and hosting ASN it had seen UNC1069 use before."],
+  blind:"Each provider sees its own estate and little of anyone else's. That is the root of the naming problem: Microsoft clusters on identity and cloud signals, CrowdStrike on endpoint behaviour, Proofpoint on email. Privacy law and terms of service limit what can be shared, and none of them can see the sponsor directly."},
+ gov:{label:"Governments",sees:"The whole path of an attack, not just its end. A state that owns or has compromised the networks in between can watch another state's operators travel from their own desks, through relays, to the victim.",
+  how:["<b>Owning the pipes.</b> National carriers, internet exchanges and cable landing stations sit under domestic law. The US (FISA 702 upstream), the UK (bulk interception), Russia (SORM) and China (the national gateway) can all compel or directly operate collection on traffic crossing their territory.","<b>Access to other people's pipes.</b> Cable taps abroad, and implants inside foreign carriers and transit providers, extend the same view to traffic that never touches home soil.","<b>Tasking selectors.</b> Once a C2 address, domain or an implant's network signature is known, backbone sensors flag every session that matches. That yields the global victim list and, more importantly, the upstream address the operator logs in from.","<b>Chaining hops.</b> Seeing both sides of a relay links the inbound operator session to the outbound attack session by timing and volume, even when both are encrypted. Repeat per hop and the chain walks back to the origin network.","<b>Compromising the attacker's infrastructure.</b> Implants on relay servers, routers, C2 hosts and the operators' own workstations turn inference into direct observation.","<b>Fourth-party collection.</b> Sitting on another service's C2 lets a state read what that service is stealing, and learn its tools, targets and identity as a side effect.","<b>Home-side sensors.</b> Intrusion detection on government networks (CISA's EINSTEIN), protective DNS and domestic flow records show what arrives. Signatures learned there become selectors for the backbone.","<b>Bought visibility.</b> Agencies also buy commercial netflow covering large parts of the internet, as US military purchases of Team Cymru data showed."],
+  ex:["<b>Byzantine Candor.</b> Documents published by Der Spiegel describe NSA compromising the hop points used by a Chinese intrusion set, then the operators' own machines, and attributing the activity to a PLA signals-intelligence unit.","<b>Snowglobe.</b> Canada's CSE found an espionage implant through passive collection and assessed with moderate certainty that a French agency ran it. A state attributing an ally from traffic alone.","<b>Cozy Bear.</b> Dutch AIVD got inside the SVR operators' network around 2014 and reportedly watched them through a building camera, according to Dutch press.","<b>Sony Pictures, 2014.</b> US officials said NSA access inside North Korean networks, reached partly through the Chinese networks that carry DPRK traffic, is why attribution took weeks, not years.","<b>The mirror image.</b> Salt Typhoon's compromise of US carriers, including lawful-intercept systems, shows what the same access is worth to an adversary: who is being watched, and whose operations have been noticed.","<b>Claims from the other side.</b> China's CVERC has published reports attributing intrusions to NSA, and Russia's FSB blamed the US for the iPhone campaign Kaspersky called Operation Triangulation. Both use the same methods and publish less evidence."],
+  blind:"Encryption and commercial VPNs reduce backbone collection to metadata, so chaining needs sight of several hops, and careful operators route through countries the collector cannot reach. Fourth-party access can be polluted on purpose: Turla ran operations from Iranian infrastructure. Publishing an attribution can burn the access that produced it, so public statements are sanitised, delayed and ask for trust. Whether to name a state at all is a policy decision.",
+  extra:()=>`<div class="stack" style="margin-top:20px"><h3>Follow one operation along the wire</h3><p class="muted">A foreign operator attacks a network in your country. Select a hop to see what a government with the right access observes there.</p><div class="wire" id="wire"></div><div class="steps five" id="hops" role="tablist"></div><div id="hopPanel"></div></div>`,
+  init:()=>showHop(1)}
+};
+const HOPS=[
+ ["Operator desk","Inside the adversary's building","A workstation on an internal network of the foreign service or its contractor.","An implant on the workstation or the internal network (computer network exploitation).","Keystrokes, source code and build paths, tasking documents, chat between operators, real names and shift patterns. This is the only hop that shows the organisation and the people directly.","AIVD inside the Cozy Bear network. NSA on Byzantine Candor operators' machines."],
+ ["National gateway","Where their traffic leaves the country","Most states reach the internet through a handful of international links. North Korea's run through China Unicom and Russia's TransTelekom.","Cable and backbone collection on the far side of the link, or access inside the transit carrier. The transit state sees it by default.","Which netblocks originate sessions, when, how much, and to which VPN or relay. For a country with a tiny address space, this alone separates state activity from everything else.","China and Russia can see essentially all DPRK internet traffic. So can anyone with access to those carriers."],
+ ["Relays","VPN exits, rented servers, hijacked routers","Hop points in third countries, chosen to break the link between operator and target.","Domestic legal process if the relay is on home or allied soil, an implant on the relay, or flow records from the networks either side of it.","The pairing of inbound and outbound sessions: this login from the gateway produced that connection to the C2. Seized or imaged relays also give logs and operator tooling.","The FBI's court-authorised access to KV-botnet routers. NSA taking over Byzantine Candor hop points."],
+ ["C2 server","The operation's switchboard","The server that implants report to and operators log in to.","Seizure or imaging through a host-country partner, a covert implant, or simply tasking its address on the backbone.","Every victim that beacons, everything exfiltrated, and each operator login with its source. Access here is fourth-party collection: the intruder's take becomes yours.","NCSC and NSA finding Turla operating from OilRig's C2. Lumen and Microsoft seeing Turla inside Storm-0156 servers."],
+ ["Victim","Your own networks","A ministry, utility or company at home.","Government network sensors, domestic carrier flow records, and the victim's own reporting and forensics.","What was targeted and taken, plus the implant's network signature. That signature goes back up the chain as a selector, which is how a single domestic incident becomes a view of the whole campaign.","EINSTEIN on US federal networks. Five Eyes advisories that pair victim forensics with classified collection."]
+];
+function drawWire(i){
+  const el=$('#wire'); if(!el) return;
+  const W=Math.max(300,el.clientWidth), y=56, xs=HOPS.map((_,j)=>Math.round(W*(.1+.2*j)));
+  const cx=Math.max(76,Math.min(W-76,xs[i])), still=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const short=["Operator","Gateway","Relays","C2","Victim"];
+  el.innerHTML=`<svg viewBox="0 0 ${W} 166" role="img" aria-label="Attack traffic flowing from operator to victim, with a government sensor copying it at ${HOPS[i][0]}">
+    <text x="${W*.2}" y="14">ADVERSARY STATE</text><text x="${W*.6}" y="14">THIRD COUNTRIES</text><text x="${W*.9}" y="14">HOME</text>
+    <line class="div" x1="${W*.4}" y1="22" x2="${W*.4}" y2="100"/><line class="div" x1="${W*.8}" y1="22" x2="${W*.8}" y2="100"/>
+    <line class="ln" x1="${xs[0]}" y1="${y}" x2="${xs[4]}" y2="${y}"/>
+    <path class="tap" fill="none" d="M${xs[i]} ${y+16} V112 H${cx} V128"/>
+    <rect class="col" x="${cx-70}" y="128" width="140" height="30" rx="4"/><text class="ct" x="${cx}" y="147">government sensor</text>
+    ${still?'':[0,1.3,2.6].map(b=>`<circle class="pk" r="4"><animateMotion dur="4s" begin="${b}s" repeatCount="indefinite" path="M${xs[0]} ${y} H${xs[4]}"/></circle>`).join('')+`<circle class="cp" r="3.5"><animateMotion dur="1.4s" repeatCount="indefinite" path="M${xs[i]} ${y+16} V112 H${cx} V128"/></circle>`}
+    ${xs.map((x,j)=>`<g class="nd ${j===i?'on':''}" data-i="${j}"><circle cx="${x}" cy="${y}" r="14"/><text x="${x}" y="${y+34}">${short[j]}</text></g>`).join('')}
+  </svg>`;
+  el.querySelectorAll('.nd').forEach(n=>n.onclick=()=>showHop(+n.dataset.i));
+}
+function showHop(i){
+  $('#hops').innerHTML=HOPS.map((h,j)=>`<button role="tab" aria-selected="${j===i}" data-i="${j}"><small>HOP ${j+1}</small>${h[0]}</button>`).join('');
+  $('#hops').querySelectorAll('button').forEach(b=>b.onclick=()=>showHop(+b.dataset.i));
+  const h=HOPS[i]; drawWire(i);
+  $('#hopPanel').innerHTML=`<div class="two" style="margin-top:14px"><div class="stack"><h3>${h[1]}</h3><p>${h[2]}</p><div><span class="eyebrow">Access needed</span><p>${h[3]}</p></div></div><div class="stack"><div><span class="eyebrow">What it reveals</span><p>${h[4]}</p></div><div><span class="eyebrow">Publicly reported cases</span><p class="muted">${h[5]}</p></div></div></div>`;
+}
+function showAcc(k){
+  tabs($('#accTabs'),Object.entries(ACC).map(([k,a])=>[k,a.label]),k,showAcc); const a=ACC[k];
+  $('#accPanel').innerHTML=`<div class="stack"><div><span class="eyebrow">What they see</span><p style="font-size:1.08rem">${a.sees}</p></div>
+   <div class="two"><div class="stack"><span class="eyebrow">How</span><ul class="clean">${a.how.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+   <div class="stack"><span class="eyebrow">In practice</span><ul class="clean">${a.ex.map(x=>`<li>${x}</li>`).join('')}</ul>
+   <span class="eyebrow">Limits</span><p>${a.blind}</p></div></div>${a.extra?a.extra():''}</div>`;
+  a.init&&a.init();
+}
+
+/* ---------- DPRK ---------- */
+const ORG=[["lazarus","Lazarus core · Diamond Sleet"],["apt38","BlueNoroff · APT38 · UNC1069"],["trader","TraderTraitor · UNC4899"],["applejeus","AppleJeus · UNC4736"],["contagious","Contagious Interview · UNC5342"],["itworkers","IT workers · UNC5267"],["moonstone","Moonstone Sleet"],["kimsuky","Kimsuky · APT43"],["andariel","Andariel · APT45"]];
+$('#org').innerHTML=ORG.map(o=>`<button class="btn" data-id="${o[0]}">${o[1]}</button>`).join('');
+$('#org').querySelectorAll('button').forEach(b=>b.onclick=()=>pick(b.dataset.id,true));
+
+const STEPS=[
+ ["Target","Pick people, not networks","Operators look for developers with access worth stealing: engineers at exchanges and wallet firms, DeFi contributors, and maintainers of widely used packages. LinkedIn, GitHub and conference speaker lists do the reconnaissance.","Target lists skew heavily to crypto and Web3, which fits a state revenue mission. Researchers who recover C2 logs or open directories find victim lists that confirm it."],
+ ["Approach","Build a believable pretext","A recruiter persona offers a job, a fake company runs an interview, or a \"collaborator\" proposes a joint project. For maintainers, the approach can be a cloned company workspace and a video call that asks them to install a fix.","Personas are reused. The same profile photos, emails, phone numbers and front companies link campaigns to each other and to the IT worker scheme. Platforms hold the sign-up records."],
+ ["Deliver","Hand over code through a trusted channel","A coding test repository on GitHub or Bitbucket, a malicious npm or PyPI package, a typosquat, a trojanised build of a real open-source tool, or a new dependency slipped into a legitimate package after its maintainer is compromised.","Registry accounts, publish timestamps, package naming habits, and reused README text. Registries can link throwaway accounts by email pattern and IP."],
+ ["Execute","Run on install or on open","npm postinstall hooks, Python setup scripts, obfuscated loaders buried in a config file, VS Code tasks that run when a folder is opened, or a ClickFix prompt that tells the candidate to paste a command to \"fix the camera\".","Loader families (BeaverTail, HexEval, XORIndex, SILKBELL) carry consistent encoding schemes and campaign identifiers across hundreds of samples."],
+ ["Steal","Take keys and keep a foothold","Second-stage backdoors (InvisibleFerret, OtterCookie, WAVESHAPER) collect browser wallets, Keychain, SSH keys, cloud tokens and password managers, then stay for hands-on access.","Backdoor code lineage and C2 protocol reuse. C2 servers administered through Astrill VPN and Russian ranges, sometimes with a direct North Korean IP when the VPN fails."],
+ ["Cash out","Drain wallets or pivot to the employer","Personal wallets are emptied at once. A developer at a bigger target becomes the way in: stolen cloud sessions were used to alter the Safe{Wallet} front end and take about $1.46 billion from Bybit in February 2025.","On-chain tracing. Funds converge on wallets and laundering routes already tied to earlier DPRK heists, which is often the fastest public attribution signal."]
+];
+function showStep(i){
+  $('#steps').innerHTML=STEPS.map((s,j)=>`<button role="tab" aria-selected="${j===i}" data-i="${j}"><small>STEP ${j+1}</small>${s[0]}</button>`).join('');
+  $('#steps').querySelectorAll('button').forEach(b=>b.onclick=()=>showStep(+b.dataset.i));
+  const s=STEPS[i];
+  $('#stepPanel').innerHTML=`<div class="two"><div class="stack"><h3>${s[1]}</h3><p>${s[2]}</p></div><div class="stack"><span class="eyebrow">Trace it leaves for attribution</span><p>${s[3]}</p></div></div>`;
+}
+
+const CASES={
+ dreamjob:{label:"2022 · Trojanised open-source tools",names:"Zinc / Diamond Sleet (Microsoft) · UNC4034 (Mandiant) · Operation Dream Job",
+  tl:[["Approach","Recruiter personas on LinkedIn move targets to WhatsApp and send a \"skills assessment\"."],["Delivery","The assessment needs a specific tool: a backdoored build of PuTTY, KiTTY, TightVNC, Sumatra PDF Reader or muPDF."],["Trigger","The implant activates only with attacker-supplied connection details, so sandboxes see a normal program."],["Goal","Espionage against defence, aerospace and media, and access to IT service providers."]],
+  ev:["Implant code shared with earlier Lazarus backdoors","Persona and lure reuse from Operation Dream Job since 2020","Victimology matching DPRK collection priorities"],
+  twist:"Open-source licences make this cheap: the attacker compiles the real project with one extra function, so the tool works exactly as expected."},
+ x3cx:{label:"2023 · 3CX, a supply chain inside a supply chain",names:"UNC4736 (Mandiant) · Labyrinth Chollima (CrowdStrike) · Lazarus (Kaspersky, ESET) · Citrine Sleet (Microsoft)",
+  tl:[["2022","A 3CX employee installs X_TRADER, a retired trading app from Trading Technologies whose signed installer had been trojanised."],["Pivot","The VEILEDSIGNAL backdoor on that personal computer yields corporate credentials, then the Windows and macOS build systems."],["Mar 2023","A signed 3CX desktop app update ships to hundreds of thousands of customers."],["Selective","Only a handful of victims, mostly crypto firms, receive the hands-on second stage (Gopuram)."]],
+  ev:["Gopuram had previously been seen alongside AppleJeus, a known DPRK backdoor","Code and infrastructure overlap with AppleJeus operations","Second-stage victims were crypto companies","Mandiant, hired by 3CX, found the X_TRADER origin through forensics on the employee's machine"],
+  twist:"Not open source, but the first publicly documented case of one software supply chain compromise causing another. Each vendor attributed it to North Korea within days and each used a different cluster name."},
+ jade:{label:"2023 · GitHub lures and JumpCloud",names:"Jade Sleet (Microsoft, GitHub) · UNC4899 (Mandiant) · TraderTraitor (FBI) · Labyrinth Chollima (CrowdStrike, for JumpCloud)",
+  tl:[["Approach","Fake developer and recruiter accounts invite crypto and security engineers to collaborate on a private GitHub repository."],["Delivery","The repository depends on a pair of npm packages. The first downloads and runs the second, so neither looks malicious alone."],["Jun 2023","The same actor spear-phishes JumpCloud and pushes malicious commands to a few crypto customers through its agent."],["Slip","Operators normally used commercial VPNs. Mandiant observed connections straight from a Pyongyang subnet when the VPN dropped."]],
+  ev:["GitHub's own account data linked the personas","Infrastructure overlap with earlier TraderTraitor apps","A direct North Korean source IP on attacker sessions","Downstream victims were all cryptocurrency firms"],
+  twist:"The clearest example of same country, different label. Mandiant and CrowdStrike both worked the JumpCloud case and published different sub-cluster names."},
+ contagious:{label:"2023 to 2026 · Contagious Interview",names:"CL-STA-0240 (Unit 42) · Famous Chollima (CrowdStrike) · UNC5342 (Google) · DeceptiveDevelopment (ESET) · Void Dokkaebi (Trend Micro)",
+  tl:[["2023","Unit 42 documents fake job interviews that deliver BeaverTail (JavaScript stealer) and InvisibleFerret (Python backdoor) through npm packages and test repositories."],["2024 to 2025","Hundreds of packages. New loaders (HexEval, XORIndex), OtterCookie, ClickFix-style fake interview sites, and front companies such as BlockNovas, whose domain the FBI seized in April 2025."],["Oct 2025","Google reports the cluster hiding payloads in blockchain smart contracts (EtherHiding)."],["2026","StegaBin (26 npm packages using Pastebin steganography), packages written to surface in AI coding assistants' suggestions, and spread to Go, Rust and PHP registries. Reporting in April 2026 put the running total near 1,700 packages."]],
+  ev:["Consistent malware chain and campaign ID format since 2023","C2 administration through Astrill VPN and Russian IP ranges","Persona, email and front-company overlap with the IT worker scheme","Registry and code-host account telemetry shared with researchers","Stolen funds traced into known DPRK laundering paths"],
+  twist:"Volume is the strategy. Packages are removed within days, so operators automate publishing under throwaway accounts and accept the losses."},
+ bybit:{label:"2025 · Bybit through Safe{Wallet}",names:"TraderTraitor (FBI) · UNC4899 (Mandiant) · Jade Sleet (Microsoft) · Slow Pisces (Unit 42)",
+  tl:[["4 Feb","A Safe{Wallet} developer's macOS workstation is compromised through a malicious Docker project."],["Pivot","Operators hijack the developer's AWS session tokens, bypassing MFA, and study the deployment."],["19 Feb","Malicious JavaScript is placed in the Safe web app's storage bucket. It activates only for Bybit's cold wallet."],["21 Feb","Bybit signers approve what looks like a routine transfer. About $1.46 billion in ETH leaves. The script is removed minutes later."]],
+  ev:["On-chain analysts linked the destination wallets to earlier DPRK thefts within hours","The FBI named TraderTraitor five days later","Mandiant's forensics for Safe matched UNC4899 tradecraft and infrastructure","Tradecraft matched earlier developer-targeting Docker and Python lures (Unit 42)"],
+  twist:"The developer's machine was the supply chain. No package registry was touched, but the path from an open-source-style lure to a production front end is the same playbook."},
+ axios:{label:"2026 · axios on npm",names:"UNC1069 (Google) · Sapphire Sleet (Microsoft) · BlueNoroff (others)",
+  tl:[["30 Mar","A clean decoy, plain-crypto-js 4.2.0, is published to give the package a history."],["31 Mar","From a compromised maintainer account, axios 1.14.1 and 0.30.4 are published at 00:21 UTC with plain-crypto-js 4.2.1 added as a dependency."],["Install","Its postinstall hook runs an obfuscated dropper (SILKBELL), which fetches the WAVESHAPER.V2 backdoor for Windows, macOS or Linux."],["Hours later","The versions are pulled. Anyone who installed in the window has to rotate every secret on the machine or CI runner."]],
+  ev:["WAVESHAPER.V2 is a direct evolution of a backdoor Google already attributed to UNC1069","Operator connections from an Astrill VPN node UNC1069 had used before","Related hosting on the same ASN as earlier infrastructure","A social-engineering lead-in consistent with the cluster's earlier fake-meeting lures"],
+  twist:"One of the most downloaded packages on npm, so the blast radius was every build that resolved a fresh version that night. Some write-ups folded UNC1069 into Contagious Interview, which Google tracks as a separate cluster (UNC5342). The lumping and splitting problem in real time."}
+};
+function showCase(k){
+  tabs($('#caseTabs'),Object.entries(CASES).map(([k,c])=>[k,c.label]),k,showCase); const c=CASES[k];
+  $('#casePanel').innerHTML=`<div class="stack"><div><span class="eyebrow">Tracked as</span><p class="mono">${c.names}</p></div>
+   <div class="two"><div class="tl">${c.tl.map(t=>`<div><b>${t[0]}</b>${t[1]}</div>`).join('')}</div>
+   <div class="stack"><span class="eyebrow">What the attribution rested on</span><ul class="clean">${c.ev.map(e=>`<li>${e}</li>`).join('')}</ul>
+   <span class="eyebrow">Why it matters</span><p>${c.twist}</p></div></div></div>`;
+}
+
+/* ---------- eCrime ---------- */
+const EC={
+ thecom:{label:"The Com",layer:"Ecosystem",id:"thecom",what:"A sprawling online community of mostly young, English-speaking people, spread over Discord and Telegram. The FBI's July 2025 notices describe three overlapping subsets: Hacker Com (intrusion, SIM swapping, ransomware), IRL Com (violence for hire, swatting) and Extortion Com.",
+  pts:["It is a recruiting pool and a marketplace for skills, not an organisation with leaders or tasking.","Saying an actor is \"linked to The Com\" is an origin statement. It carries about as much precision as \"Russian-speaking cybercrime\"."],
+  attr:"Mostly law enforcement work: informants, seized chat logs and device forensics. Vendors infer links from language, slang, tradecraft and the escalation to physical threats."},
+ scattered:{label:"Scattered Spider",layer:"Cluster name that became a brand",id:"scattered",what:"CrowdStrike's name for a style of intrusion first seen in 2022: SMS phishing and help-desk vishing against identity providers, then data theft and ransomware as an affiliate (ALPHV in the 2023 MGM and Caesars cases, DragonForce in the 2025 UK retail cases).",
+  pts:["UNC3944, Octo Tempest and Muddled Libra map to it closely, because all four vendors cluster on the same distinctive tradecraft.","Arrests in the US, UK and Spain between 2024 and 2025 removed named members, yet activity under the label continued with new people."],
+  attr:"Tradecraft first (the phone call itself, the phishing kit, domain naming), then crypto tracing and arrests. Tooling is nearly useless for attribution here because it is all legitimate software."},
+ shiny:{label:"ShinyHunters",layer:"Persona and brand",id:"shiny",what:"A data-theft and extortion name in use since 2020, tied to BreachForums administration. The name has been carried by different people over time, and several distinct intrusion clusters now sign with it.",
+  pts:["UNC5537: 2024 theft from Snowflake customer tenants using credentials from infostealer logs.","UNC6040: 2025 vishing that gets staff to approve a malicious Salesforce connected app. UNC6240 handles the extortion that follows.","UNC6395: August 2025 abuse of stolen Salesloft Drift OAuth tokens.","UNC6661 and UNC6671: early 2026 vishing for SSO credentials and MFA codes, followed by SaaS data theft."],
+  attr:"Google deliberately keeps these as separate UNC clusters. The extortion email says ShinyHunters, but the people who made the phone call, wrote the tooling and sent the demand may be different sets."},
+ lapsus:{label:"LAPSUS$",layer:"Defunct crew, surviving brand",id:"lapsus",what:"A small 2021 to 2022 crew, several of them teenagers, that breached Okta, Microsoft, Nvidia, Samsung, Uber and Rockstar through SIM swapping, MFA fatigue and bought insider access. It announced itself loudly on Telegram.",
+  pts:["Tracked as Strawberry Tempest (Microsoft), Slippy Spider (CrowdStrike) and UNC3661 (Mandiant).","UK arrests and a 2023 conviction ended the original crew. The US Cyber Safety Review Board's 2023 report is the best public account."],
+  attr:"Largely self-attributed: the crew bragged in public and were doxxed by rivals before police arrived. A reminder that in eCrime the adversary's own rivals are an intelligence source."},
+ slsh:{label:"Scattered LAPSUS$ Hunters",layer:"Alliance brand",id:"slsh",what:"A Telegram persona that appeared in August 2025, combining three famous names. It has claimed the Salesforce-related thefts, the Jaguar Land Rover intrusion, a data leak site and a ransomware service called ShinySp1d3r, and resurfaced in January 2026 with a more structured recruitment drive.",
+  pts:["The name is built from labels that vendors and earlier crews created, picked up by the actors for their notoriety.","Channels are banned and recreated constantly, and claims are often exaggerated or false.","Vendors generally keep tracking the underlying clusters (UNC3944, UNC6040, UNC6240) and treat SLSH as a public face."],
+  attr:"Claim-based attribution is the weakest kind. Analysts check whether leaked samples are real, whether the persona had the data before anyone else, and whether the intrusion tradecraft matches a tracked cluster."},
+ blackfile:{label:"BlackFile",layer:"Extortion brand",id:"blackfile",what:"An extortion operation that emerged in early 2026 against retail and hospitality. Callers pose as IT support from spoofed numbers, send staff to a fake SSO page, then take data through legitimate APIs. No custom malware. Demands run to seven figures, and executives have been swatted when talks stall.",
+  pts:["Tracked as CL-CRI-1116 (Unit 42), UNC6671 (Google) and Cordial Spider (CrowdStrike). Unit 42 links it to The Com with moderate confidence.","Reporting says the BlackFile name was retired in May 2026 and the same cluster moved to other brands.","The tradecraft resembles Scattered Spider and the ShinyHunters-branded clusters, yet vendors track it separately."],
+  attr:"With no malware to analyse, attribution rests on phone-number and VoIP provider patterns, phishing-kit and domain fingerprints, identity provider logs, and negotiation behaviour. The scopes of the three vendor names are not identical."},
+ fin:{label:"FIN7 and FIN11",layer:"Classic FIN groups, for contrast",id:"fin7",what:"\"FIN\" is Mandiant's prefix for a financially motivated group it has tracked long enough to define with confidence. FIN7 and FIN11 are Russian-speaking, organised, and built around their own malware and long-running infrastructure.",
+  pts:["FIN7: point-of-sale and payment card theft, later ransomware partnerships. Ran a fake security company, Combi Security, to hire pen testers.","FIN11: mass exploitation of file-transfer products (Accellion, MOVEit, Cleo) with extortion under the Cl0p brand. A subset of what Proofpoint calls TA505."],
+  attr:"These look more like state APTs to an analyst: stable tooling and code lineage carry the attribution. That is why they have tidy alias rows, and the English-speaking brands above do not."}
+};
+function showEc(k){
+  tabs($('#ecTabs'),Object.entries(EC).map(([k,e])=>[k,e.label]),k,showEc); const e=EC[k];
+  $('#ecPanel').innerHTML=`<div class="stack"><div class="row"><span class="tag t-ec">${e.layer}</span><h3>${e.label}</h3></div><p>${e.what}</p>
+   <div class="two"><div class="stack"><span class="eyebrow">What sits under the name</span><ul class="clean">${e.pts.map(p=>`<li>${p}</li>`).join('')}</ul></div>
+   <div class="stack"><span class="eyebrow">How it gets attributed</span><p>${e.attr}</p><div><button class="btn" id="ecJump">See vendor names in the matrix</button></div></div></div></div>`;
+  $('#ecJump').onclick=()=>pick(e.id,true);
+}
+
+/* ---------- boot ---------- */
+renderHero(); showModel('diamond'); renderMatrix(); renderDetail(); buildGraph(); renderRels(); renderScen(); showAcc('gov'); showStep(0); showCase('axios'); showEc('slsh');
+</script>
+</body>
+</html>
